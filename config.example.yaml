@@ -1,0 +1,56 @@
+# knowledge-keeper configuration
+# Copy to config.yaml and edit. Any value can be overridden by env vars:
+#   KK_PROVIDER=azure  KK_AZURE__SEARCH_API_KEY=...  KK_LLM__PROVIDER=anthropic
+# Never commit real keys — prefer env vars or managed identity/IAM roles.
+
+# Vector store + embeddings: local | azure | aws
+provider: local
+
+# Where local state lives (manifest, doc registry, knowledge map, local store)
+data_dir: ./kk_data
+
+# LLM for RAG answers, topic extraction, conflict detection, doc synthesis.
+# provider: none | gemini | anthropic | azure_openai | bedrock
+# Easiest free option: gemini — get a key at https://aistudio.google.com,
+# then `export GEMINI_API_KEY=...` and set provider: gemini below.
+llm:
+  provider: none
+  max_tokens: 2000
+  temperature: 0.2
+
+gemini:
+  # api_key: read from GEMINI_API_KEY env var if empty
+  model: gemini-3.6-flash
+
+anthropic:
+  # api_key: read from ANTHROPIC_API_KEY env var if empty
+  model: claude-sonnet-4-6
+
+azure:
+  search_endpoint: https://YOUR-SEARCH.search.windows.net
+  search_index: knowledge-keeper
+  search_api_key: ""            # empty -> DefaultAzureCredential (managed identity / az login)
+  openai_endpoint: https://YOUR-AOAI.openai.azure.com
+  openai_api_key: ""            # empty -> DefaultAzureCredential
+  embedding_deployment: text-embedding-3-large
+  chat_deployment: gpt-4o
+  embedding_dimensions: 1536
+
+aws:
+  region: us-east-1
+  opensearch_endpoint: https://YOUR-COLLECTION.us-east-1.aoss.amazonaws.com
+  opensearch_index: knowledge-keeper
+  embedding_model_id: amazon.titan-embed-text-v2:0
+  chat_model_id: anthropic.claude-sonnet-4-20250514-v1:0
+  embedding_dimensions: 1024
+
+chunking:
+  target_tokens: 400
+  overlap_tokens: 60
+  min_tokens: 40
+
+analysis:
+  stale_days: 540               # docs older than ~18 months flagged stale
+  bus_factor_threshold: 1       # topics with <= 1 author flagged
+  min_mentions_for_gap: 3       # mentioned >= 3 times but never explained -> gap
+  use_llm: true                 # applies only when llm.provider != none

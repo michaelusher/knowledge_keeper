@@ -1,0 +1,42 @@
+[project]
+name = "knowledge-keeper"
+version = "0.1.0"
+description = "Ingest organizational knowledge (PPTX/DOCX/PDF/MD), build a cloud RAG database, generate system documentation, and surface knowledge gaps."
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.5",
+    "pyyaml>=6.0",
+    "python-pptx>=1.0",
+    "python-docx>=1.1",
+    "pypdf>=4.0",
+    "numpy>=1.26",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "typer>=0.12",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+azure = [
+    "azure-search-documents>=11.5",
+    "azure-identity>=1.16",
+    "openai>=1.30",            # Azure OpenAI via openai SDK
+]
+aws = [
+    "boto3>=1.34",             # Bedrock (embeddings + Claude) and S3
+    "opensearch-py>=2.5",
+    "requests-aws4auth>=1.2",
+]
+anthropic = [
+    "anthropic>=0.25",         # direct Anthropic API as the analysis/RAG LLM
+]
+
+[project.scripts]
+kk = "knowledge_keeper.cli:app"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
