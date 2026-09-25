@@ -178,6 +178,10 @@ _MD_HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 def extract_markdown(path: Path) -> tuple[SourceDocument, list[RawSection]]:
     doc = _base_doc(path, DocType.MARKDOWN)
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    # A leading "# Title" names the document better than its filename does.
+    first = next((ln.strip() for ln in lines if ln.strip()), "")
+    if first.startswith("# "):
+        doc.title = first[2:].strip() or doc.title
 
     sections: list[RawSection] = []
     heading = doc.title

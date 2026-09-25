@@ -7,6 +7,7 @@ Auth: API keys via config/env, or DefaultAzureCredential when keys are empty
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Optional
 
 from ..config import AzureConfig
 from ..models import Chunk, DocType, RetrievedChunk
@@ -153,10 +154,20 @@ class AzureSearchStore(VectorStore):
         if keys:
             self.client.delete_documents(keys)
 
-    def search(self, query_vector: list[float], query_text: str, top_k: int = 8) -> list[RetrievedChunk]:
+    def search(
+        self,
+        query_vector: list[float],
+        query_text: str,
+        top_k: int = 8,
+        doc_ids: Optional[list[str]] = None,
+    ) -> list[RetrievedChunk]:
         from azure.search.documents.models import VectorizedQuery
 
+        filter_expr = None
+        if doc_ids:
+            filter_expr = "search.in(doc_id, '" + ",".join(doc_ids) + "', ',')"
         results = self.client.search(
+            filter=filter_expr,
             search_text=query_text,
             vector_queries=[VectorizedQuery(vector=query_vector, k_nearest_neighbors=top_k, fields="vector")],
             query_type="semantic",

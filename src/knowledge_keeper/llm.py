@@ -16,6 +16,10 @@ from .config import Config
 
 
 class LlmClient(ABC):
+    # Called with human-readable progress messages (e.g. retry notices).
+    # The CLI leaves it as print; the GUI routes it into the job log.
+    on_status = staticmethod(print)
+
     @abstractmethod
     def complete(self, system: str, user: str) -> str:
         ...
@@ -111,7 +115,8 @@ class GeminiClient(LlmClient):
         if not self.api_key:
             raise RuntimeError(
                 "Gemini selected but no API key found. Get a free key at "
-                "https://aistudio.google.com and `export GEMINI_API_KEY=...`"
+                "https://aistudio.google.com, then paste it in the app's Settings page "
+                "(or `export GEMINI_API_KEY=...`)."
             )
 
     def complete(self, system: str, user: str) -> str:
@@ -150,8 +155,8 @@ class GeminiClient(LlmClient):
                 # 503 = overloaded, 429 = rate limited: transient, retry with backoff.
                 if e.code in (503, 429) and attempt < attempts - 1:
                     wait = 2 ** (attempt + 1)  # 2, 4, 8, 16 seconds
-                    print(f"  Gemini busy ({e.code}), retrying in {wait}s "
-                          f"(attempt {attempt + 2}/{attempts})...")
+                    self.on_status(f"Gemini busy ({e.code}), retrying in {wait}s "
+                                   f"(attempt {attempt + 2}/{attempts})...")
                     time.sleep(wait)
                     continue
                 raise RuntimeError(f"Gemini API error {e.code}: {detail}") from e

@@ -7,3 +7,5 @@ config.yaml
 system_report.md
 my_docs/
 *_report.md
+frontend/node_modules/
+build/

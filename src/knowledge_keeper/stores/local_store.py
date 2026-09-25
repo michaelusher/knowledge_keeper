@@ -12,6 +12,7 @@ import json
 import math
 import re
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -78,14 +79,14 @@ class LocalVectorStore(VectorStore):
         if self.chunks_file.exists():
             self._chunks = [
                 Chunk(**json.loads(line))
-                for line in self.chunks_file.read_text().splitlines()
+                for line in self.chunks_file.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
         if self.vectors_file.exists():
             self._matrix = np.load(self.vectors_file)
 
     def _save(self):
-        with open(self.chunks_file, "w") as f:
+        with open(self.chunks_file, "w", encoding="utf-8") as f:
             for c in self._chunks:
                 f.write(c.model_dump_json() + "\n")
         if self._matrix is not None:
@@ -119,7 +120,13 @@ class LocalVectorStore(VectorStore):
         self._matrix = self._matrix[keep] if (self._matrix is not None and keep) else None
         self._save()
 
-    def search(self, query_vector: list[float], query_text: str, top_k: int = 8) -> list[RetrievedChunk]:
+    def search(
+        self,
+        query_vector: list[float],
+        query_text: str,
+        top_k: int = 8,
+        doc_ids: Optional[list[str]] = None,
+    ) -> list[RetrievedChunk]:
         if not self._chunks or self._matrix is None:
             return []
         q = np.array(query_vector, dtype=np.float32)
@@ -134,11 +141,15 @@ class LocalVectorStore(VectorStore):
                 kw[i] = len(overlap) / len(q_tokens)
 
         score = 0.6 * cosine + 0.4 * kw
+        if doc_ids:
+            allowed = set(doc_ids)
+            mask = np.array([c.doc_id in allowed for c in self._chunks])
+            score = np.where(mask, score, -np.inf)
         order = np.argsort(-score)[:top_k]
         return [
             RetrievedChunk(chunk=self._chunks[i], score=float(score[i]))
             for i in order
-            if score[i] > 0
+            if np.isfinite(score[i]) and score[i] > 0
         ]
 
     def all_chunks(self) -> list[Chunk]:

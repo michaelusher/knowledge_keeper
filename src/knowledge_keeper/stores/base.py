@@ -6,6 +6,7 @@ Concrete implementations: local (offline dev), Azure AI Search, AWS
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from ..models import Chunk, RetrievedChunk
 
@@ -35,8 +36,15 @@ class VectorStore(ABC):
         """Remove all chunks for a doc (re-ingestion of changed files)."""
 
     @abstractmethod
-    def search(self, query_vector: list[float], query_text: str, top_k: int = 8) -> list[RetrievedChunk]:
-        """Hybrid search where supported; vector-only otherwise."""
+    def search(
+        self,
+        query_vector: list[float],
+        query_text: str,
+        top_k: int = 8,
+        doc_ids: Optional[list[str]] = None,
+    ) -> list[RetrievedChunk]:
+        """Hybrid search where supported; vector-only otherwise.
+        `doc_ids` restricts results to those documents (None = whole corpus)."""
 
     @abstractmethod
     def all_chunks(self) -> list[Chunk]:

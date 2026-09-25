@@ -42,7 +42,7 @@ def _kmap() -> KnowledgeMap:
     path = get_cfg().provider_data_path / "knowledge_map.json"
     if not path.exists():
         raise HTTPException(404, "No knowledge map yet — POST /analyze first.")
-    return KnowledgeMap(**json.loads(path.read_text()))
+    return KnowledgeMap(**json.loads(path.read_text(encoding="utf-8")))
 
 
 class AskRequest(BaseModel):
@@ -97,7 +97,7 @@ def analyze():
         raise HTTPException(400, "Store is empty — ingest documents first.")
     kmap = build_knowledge_map(pipeline.load_documents(), chunks, llm)
     kmap = run_gap_analysis(kmap, chunks, cfg.analysis, llm)
-    (cfg.provider_data_path / "knowledge_map.json").write_text(kmap.model_dump_json(indent=2))
+    (cfg.provider_data_path / "knowledge_map.json").write_text(kmap.model_dump_json(indent=2), encoding="utf-8")
     return {"topics": len(kmap.topics), "findings": len(kmap.findings)}
 
 

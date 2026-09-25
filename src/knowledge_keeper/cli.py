@@ -4,7 +4,8 @@
   kk ask "How does X work?"   # RAG query with citations
   kk analyze                  # build knowledge map + run gap analysis
   kk report                   # generate Markdown system report
-  kk serve                    # start the HTTP API
+  kk serve                    # start the headless JSON API
+  kk gui                      # open the web app in your browser (same as kk-gui)
 """
 from __future__ import annotations
 
@@ -95,7 +96,7 @@ def status(config: Optional[str] = _CONFIG_OPT):
         f = cfg.data_path / provider / "documents.jsonl"
         if not f.exists():
             return "—"
-        return str(sum(1 for line in f.read_text().splitlines() if line.strip()))
+        return str(sum(1 for line in f.read_text(encoding="utf-8").splitlines() if line.strip()))
 
     azure_deps = _has("azure.search.documents") and _has("openai")
     aws_deps = _has("boto3") and _has("opensearchpy")
@@ -130,8 +131,6 @@ def status(config: Optional[str] = _CONFIG_OPT):
 @app.command()
 def remove(filename: str, config: Optional[str] = _CONFIG_OPT):
     """Remove one document from the index by filename (or a unique part of it)."""
-    import json as _json
-
     cfg = _cfg(config)
     store, embedder, _ = build_all(cfg)
     pipeline = IngestionPipeline(cfg, store, embedder)
@@ -150,19 +149,10 @@ def remove(filename: str, config: Optional[str] = _CONFIG_OPT):
         raise typer.Exit(1)
 
     doc = matches[0]
-    store.delete_document(doc.doc_id)
-
-    remaining = [d for d in docs if d.doc_id != doc.doc_id]
-    with open(pipeline.docs_path, "w") as f:
-        for d in remaining:
-            f.write(d.model_dump_json() + "\n")
-    manifest = pipeline._load_manifest()
-    manifest.pop(doc.path, None)
-    pipeline._save_manifest(manifest)
-
-    kmap_file = _kmap_path(cfg)
-    if kmap_file.exists():
-        kmap_file.unlink()
+    had_map = _kmap_path(cfg).exists()
+    pipeline.remove_document(doc.doc_id)
+    remaining = pipeline.load_documents()
+    if had_map:
         console.print("[dim]Knowledge map invalidated — run `kk analyze` to rebuild.[/dim]")
     console.print(f"[green]Removed[/green] {Path(doc.path).name} ({len(remaining)} document(s) remain).")
 
@@ -231,7 +221,7 @@ def analyze(config: Optional[str] = _CONFIG_OPT, no_llm: bool = typer.Option(Fal
     kmap = run_gap_analysis(kmap, chunks, cfg.analysis, llm, progress=lambda t: console.print(f"  [dim]checked conflicts: {t}[/dim]"))
 
     out = _kmap_path(cfg)
-    out.write_text(kmap.model_dump_json(indent=2))
+    out.write_text(kmap.model_dump_json(indent=2), encoding="utf-8")
     console.print(f"\n[green]Knowledge map written to {out}[/green]")
 
     high = sum(1 for f in kmap.findings if f.severity == "high")
@@ -257,12 +247,35 @@ def report(
     if not kmap_file.exists():
         console.print("[red]No knowledge map found. Run `kk analyze` first.[/red]")
         raise typer.Exit(1)
-    kmap = KnowledgeMap(**json.loads(kmap_file.read_text()))
+    kmap = KnowledgeMap(**json.loads(kmap_file.read_text(encoding="utf-8")))
     chunks = store.all_chunks()
 
     md = generate_report(kmap, chunks, llm, progress=lambda t: console.print(f"  [dim]wrote section: {t}[/dim]"))
-    Path(output).write_text(md)
+    Path(output).write_text(md, encoding="utf-8")
     console.print(f"[green]Report written to {output}[/green]")
+
+
+@app.command()
+def gui(
+    share: bool = typer.Option(False, help="Allow other devices on your network (access code required)"),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Don't open a browser window"),
+    port: int = typer.Option(8765),
+    workspace: Optional[str] = typer.Option(None, help="Knowledge-base folder (default: ~/KnowledgeKeeper)"),
+    install_shortcut: bool = typer.Option(False, "--install-shortcut", help="Add Knowledge Keeper to your app menu and exit"),
+):
+    """Open Knowledge Keeper as a local website in your browser."""
+    from .gui import main as gui_main
+
+    argv = ["--port", str(port)]
+    if share:
+        argv.append("--share")
+    if no_browser:
+        argv.append("--no-browser")
+    if workspace:
+        argv += ["--workspace", workspace]
+    if install_shortcut:
+        argv.append("--install-shortcut")
+    raise typer.Exit(gui_main(argv))
 
 
 @app.command()

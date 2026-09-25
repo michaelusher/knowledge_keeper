@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from typing import Optional
 
 from ..config import AwsConfig
 from ..models import Chunk, DocType, RetrievedChunk
@@ -126,7 +127,13 @@ class OpenSearchStore(VectorStore):
             ordinal=src.get("ordinal", 0),
         )
 
-    def search(self, query_vector: list[float], query_text: str, top_k: int = 8) -> list[RetrievedChunk]:
+    def search(
+        self,
+        query_vector: list[float],
+        query_text: str,
+        top_k: int = 8,
+        doc_ids: Optional[list[str]] = None,
+    ) -> list[RetrievedChunk]:
         # Hybrid: kNN + BM25 text match, merged by normalized rank.
         body = {
             "size": top_k,
@@ -140,6 +147,9 @@ class OpenSearchStore(VectorStore):
             },
             "_source": {"excludes": ["vector"]},
         }
+        if doc_ids:
+            body["query"]["bool"]["filter"] = [{"terms": {"doc_id": list(doc_ids)}}]
+            body["query"]["bool"]["minimum_should_match"] = 1
         resp = self.client.search(index=self.cfg.opensearch_index, body=body)
         return [
             RetrievedChunk(chunk=self._from_hit(h), score=float(h["_score"]))

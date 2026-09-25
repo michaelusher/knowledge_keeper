@@ -103,7 +103,7 @@ _ACTIVE_PROVIDER_FILE = ".active_provider"
 def get_active_provider(data_dir: str = "./kk_data") -> Optional[str]:
     f = Path(data_dir) / _ACTIVE_PROVIDER_FILE
     if f.exists():
-        value = f.read_text().strip()
+        value = f.read_text(encoding="utf-8").strip()
         if value in ("local", "azure", "aws"):
             return value
     return None
@@ -114,7 +114,7 @@ def set_active_provider(provider: str, data_dir: str = "./kk_data") -> None:
         raise ValueError(f"Unknown provider: {provider}")
     p = Path(data_dir)
     p.mkdir(parents=True, exist_ok=True)
-    (p / _ACTIVE_PROVIDER_FILE).write_text(provider)
+    (p / _ACTIVE_PROVIDER_FILE).write_text(provider, encoding="utf-8")
 
 
 def _apply_env_overrides(data: dict) -> dict:
@@ -139,7 +139,7 @@ def load_config(path: Optional[str] = None, provider: Optional[str] = None) -> C
     data: dict = {}
     candidate = Path(path) if path else Path("config.yaml")
     if candidate.exists():
-        data = yaml.safe_load(candidate.read_text()) or {}
+        data = yaml.safe_load(candidate.read_text(encoding="utf-8")) or {}
     data = _apply_env_overrides(data)
     cfg = Config(**data)
 

@@ -1,0 +1,56 @@
+name: tests
+
+# Runs the test suite on real Windows, macOS, and Linux machines on every push
+# and pull request. Free for public repositories.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  python:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: python -m pip install -e . pytest
+      - name: Test
+        run: python -m pytest tests -v
+      # Fail if any file is opened without an explicit encoding. Windows' default
+      # (cp1252) can't hold characters like "ā" or "漢", so this guards against the
+      # crash that implicit encodings cause there.
+      - name: Test (strict text encoding)
+        if: matrix.os == 'ubuntu-latest'
+        run: python -X warn_default_encoding -W error::EncodingWarning -m pytest tests -q
+
+  frontend:
+    name: React build is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      # The app serves the committed build, so it must match the source.
+      - name: Check committed build matches source
+        run: |
+          git status --porcelain src/knowledge_keeper/web/static
+          test -z "$(git status --porcelain src/knowledge_keeper/web/static)" || {
+            echo "::error::src/knowledge_keeper/web/static is out of date. Run 'cd frontend && npm run build' and commit the result."
+            exit 1
+          }

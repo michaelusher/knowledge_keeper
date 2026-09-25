@@ -1,7 +1,7 @@
 [project]
 name = "knowledge-keeper"
-version = "0.1.0"
-description = "Ingest organizational knowledge (PPTX/DOCX/PDF/MD), build a cloud RAG database, generate system documentation, and surface knowledge gaps."
+version = "0.2.0"
+description = "Ingest organizational knowledge (PPTX/DOCX/PDF/MD) into a RAG knowledge base with a local web app: cited Q&A, generated documentation, and knowledge-gap analysis."
 requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.5",
@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=1.26",
     "fastapi>=0.110",
     "uvicorn>=0.29",
+    "python-multipart>=0.0.9",   # file uploads in the web app
     "typer>=0.12",
     "rich>=13.7",
 ]
@@ -34,9 +35,18 @@ anthropic = [
 [project.scripts]
 kk = "knowledge_keeper.cli:app"
 
+[project.gui-scripts]
+# On Windows this becomes a launcher with no console window.
+kk-gui = "knowledge_keeper.gui:main"
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# The built React app (frontend/ -> npm run build) ships inside the package,
+# so running the app never requires Node.js.
+knowledge_keeper = ["web/static/*", "web/static/assets/*"]

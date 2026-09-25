@@ -43,9 +43,28 @@ class RagEngine:
         self.embedder = embedder
         self.llm = llm
 
-    def query(self, question: str, top_k: int = 8) -> RagAnswer:
+    def retrieve(self, question: str, top_k: int = 8, doc_ids: Optional[list[str]] = None) -> list[RetrievedChunk]:
         qvec = self.embedder.embed_query(question)
-        retrieved = self.store.search(qvec, question, top_k=top_k)
+        return self.store.search(qvec, question, top_k=top_k, doc_ids=doc_ids or None)
+
+    def synthesize(self, question: str, retrieved: list[RetrievedChunk]) -> tuple[str, list[int]]:
+        """Ask the LLM to answer from the passages. Returns (answer, cited passage
+        numbers, 1-based). Raises if the LLM call fails — callers decide whether to
+        fall back to showing passages."""
+        if self.llm is None:
+            raise RuntimeError("No LLM configured")
+        context = _format_context(retrieved)
+        answer = self.llm.complete(_SYSTEM, f"Passages:\n\n{context}\n\nQuestion: {question}")
+        cited = sorted({
+            int(n)
+            for group in re.findall(r"\[(S\d+(?:\s*,\s*S?\d+)*)\]", answer)
+            for n in re.findall(r"\d+", group)
+            if 1 <= int(n) <= len(retrieved)
+        })
+        return answer, cited
+
+    def query(self, question: str, top_k: int = 8, doc_ids: Optional[list[str]] = None) -> RagAnswer:
+        retrieved = self.retrieve(question, top_k=top_k, doc_ids=doc_ids)
 
         if not retrieved:
             return RagAnswer(question=question, answer="No relevant material found in the knowledge base.")
@@ -60,15 +79,10 @@ class RagEngine:
             citations = [self._citation(r) for r in retrieved[:4]]
             return RagAnswer(question=question, answer=answer, citations=citations, retrieved=retrieved)
 
-        context = _format_context(retrieved)
-        answer = self.llm.complete(_SYSTEM, f"Passages:\n\n{context}\n\nQuestion: {question}")
-
-        cited_ids = {int(m) for m in re.findall(r"\[S(\d+)\]", answer)}
-        citations = [
-            self._citation(r)
-            for i, r in enumerate(retrieved, start=1)
-            if i in cited_ids
-        ] or [self._citation(r) for r in retrieved[:3]]
+        answer, cited = self.synthesize(question, retrieved)
+        citations = [self._citation(retrieved[i - 1]) for i in cited] or [
+            self._citation(r) for r in retrieved[:3]
+        ]
         return RagAnswer(question=question, answer=answer, citations=citations, retrieved=retrieved)
 
     @staticmethod
